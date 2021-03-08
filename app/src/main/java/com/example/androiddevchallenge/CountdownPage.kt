@@ -179,7 +179,10 @@ fun ColumnScope.TimeView(
             counting -> scope.launch { scrollState.scrollToItem(index, scroll) }
             index == 0 && scroll == 0 -> {
                 onScrolled(userScroll)
-                scope.launch { scrollState.scrollToItem(index, scroll) }
+
+                scope.launch {
+                    scrollState.runCatching { scrollToItem(index, scroll) }
+                }
             }
             else -> onScrolled(userScroll)
         }
