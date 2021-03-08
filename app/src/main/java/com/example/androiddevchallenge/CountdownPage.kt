@@ -1,19 +1,41 @@
+/*
+ * Copyright 2021 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.example.androiddevchallenge
 
-
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Button
 import androidx.compose.material.Card
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,8 +52,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.androiddevchallenge.ui.theme.blueGrey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import java.util.*
-
+import java.util.Locale
+import kotlin.math.roundToInt
 
 @Preview
 @Composable
@@ -46,11 +68,11 @@ fun CountdownPage(
     cellWidthPx: Float = LocalDensity.current.run { cellWidth.toPx() },
     padding: Dp = 16.dp,
     labelStyle: TextStyle = MaterialTheme.typography.overline,
-    timeStyle: TextStyle = MaterialTheme.typography.h2,
     scope: CoroutineScope = rememberCoroutineScope()
 ) {
 
     val ticker by viewModel.ticker.collectAsState()
+    val counting by viewModel.counting.collectAsState()
 
     val seconds = (ticker / 1000).toInt()
 
@@ -71,93 +93,109 @@ fun CountdownPage(
     }
 
     Card(
-        shape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp),
-        border = BorderStroke(2.dp, blueGrey), modifier = Modifier
+        shape = RoundedCornerShape(bottomEnd = 24.dp),
+        border = BorderStroke(2.dp, blueGrey),
+        modifier = Modifier
             .width(cellWidth)
             .fillMaxHeight(0.66f)
     ) {}
-    Button(onClick = {
-        viewModel.startTimer(66 * 1000)
-    }) {
-        Text(text = "Start : $seconds")
-    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Spacer(modifier = Modifier.weight(2.0f, true))
 
         Label(R.string.label_hours, padding = padding, style = labelStyle)
-
-        Box(
-            contentAlignment = Alignment.TopCenter,
-            modifier = Modifier.weight(2.0f, true)
-        ) {
-            val scrollState = rememberLazyListState()
-            LazyRow(state = scrollState) {
-                items(1000) {
-                    val fontSize = animatedFontSize(scrollState, it, cellWidthPx)
-                    Text(
-                        text = "$it",
-                        modifier = Modifier.width(cellWidth),
-                        style = timeStyle,
-                        textAlign = TextAlign.Center,
-                        fontSize = fontSize
-                    )
-                }
+        TimeView(
+            index = hoursIndex,
+            scroll = hoursScroll,
+            counting = counting,
+            scope = scope,
+            text = { "$it" },
+            onScrolled = {
+                viewModel.hours = it
             }
-            scope.launch { scrollState.scrollToItem(hoursIndex, hoursScroll) }
-        }
+        )
 
         Label(R.string.label_minutes, padding = padding, style = labelStyle)
-
-        Box(contentAlignment = Alignment.TopCenter, modifier = Modifier.weight(2.0f, true)) {
-            val scrollState = rememberLazyListState()
-            LazyRow(state = scrollState) {
-                items(1000) {
-                    val fontSize = animatedFontSize(scrollState, it, cellWidthPx)
-                    Text(
-                        text = "${it % 60}",
-                        modifier = Modifier.width(cellWidth),
-                        style = timeStyle,
-                        textAlign = TextAlign.Center,
-                        fontSize = fontSize
-                    )
-                }
+        TimeView(
+            index = minutesIndex,
+            scroll = minutesScroll,
+            counting = counting,
+            scope = scope,
+            text = { "${it % 60}" },
+            onScrolled = {
+                viewModel.minutes = it % 60
             }
-            scope.launch { scrollState.scrollToItem(minutesIndex, minutesScroll) }
-        }
+        )
 
         Label(R.string.label_seconds, padding = padding, style = labelStyle)
-
-        Box(contentAlignment = Alignment.TopCenter, modifier = Modifier.weight(2.0f, true)) {
-            val scrollState = rememberLazyListState()
-            LazyRow(state = scrollState) {
-                items(1000) {
-                    val fontSize = animatedFontSize(scrollState, it, cellWidthPx)
-                    Text(
-                        text = "${it % 60}",
-                        modifier = Modifier.width(cellWidth),
-                        style = timeStyle,
-                        textAlign = TextAlign.Center,
-                        fontSize = fontSize
-                    )
-                }
+        TimeView(
+            index = secondsIndex,
+            scroll = scroll,
+            counting = counting,
+            scope = scope,
+            text = { "${it % 60}" },
+            onScrolled = {
+                viewModel.seconds = it % 60
             }
-            scope.launch { scrollState.scrollToItem(secondsIndex, scroll) }
-        }
+        )
 
         Spacer(modifier = Modifier.weight(7.0f, true))
     }
 }
 
 @Composable
+fun ColumnScope.TimeView(
+    index: Int,
+    scroll: Int,
+    counting: Boolean = false,
+    cellWidth: Dp = 84.dp,
+    cellWidthPx: Float = LocalDensity.current.run { cellWidth.toPx() },
+    timeStyle: TextStyle = MaterialTheme.typography.h2,
+    scope: CoroutineScope = rememberCoroutineScope(),
+    text: (Int) -> String,
+    onScrolled: (Int) -> Unit
+) {
+
+    Box(contentAlignment = Alignment.TopCenter, modifier = Modifier.weight(2.0f, true)) {
+        val scrollState = rememberLazyListState()
+        LazyRow(state = scrollState) {
+            items(1000) {
+
+                Text(
+                    text = text(it),
+                    modifier = Modifier.width(cellWidth),
+                    style = timeStyle,
+                    textAlign = TextAlign.Center,
+                    fontSize = animatedFontSize(scrollState, it, cellWidthPx)
+                )
+            }
+        }
+
+        val userScroll by remember {
+            derivedStateOf { (scrollState.firstVisibleItemIndex + (scrollState.firstVisibleItemScrollOffset / cellWidthPx).roundToInt()) }
+        }
+
+        when {
+            counting -> scope.launch { scrollState.scrollToItem(index, scroll) }
+            index == 0 && scroll == 0 -> {
+                onScrolled(userScroll)
+                scope.launch { scrollState.scrollToItem(index, scroll) }
+            }
+            else -> onScrolled(userScroll)
+        }
+    }
+}
+
+@Composable
 fun ColumnScope.Label(id: Int, padding: Dp = 16.dp, style: TextStyle = MaterialTheme.typography.overline) {
     Box(
-        contentAlignment = Alignment.BottomCenter, modifier = Modifier
+        contentAlignment = Alignment.BottomCenter,
+        modifier = Modifier
             .weight(1.0f, true)
             .padding(start = padding)
     ) {
         Text(stringResource(id = id).toUpperCase(Locale.ROOT), style = style)
     }
-
 }
 
 fun animatedFontSize(state: LazyListState, currentIndex: Int, cellWidthPx: Float): TextUnit {
@@ -167,4 +205,3 @@ fun animatedFontSize(state: LazyListState, currentIndex: Int, cellWidthPx: Float
         else -> 12.sp
     }
 }
-

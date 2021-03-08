@@ -19,11 +19,21 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.*
+import androidx.compose.material.BottomAppBar
+import androidx.compose.material.FabPosition
+import androidx.compose.material.FloatingActionButton
+import androidx.compose.material.Icon
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Scaffold
+import androidx.compose.material.Surface
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.androiddevchallenge.ui.theme.MyTheme
 
 class MainActivity : AppCompatActivity() {
@@ -41,6 +51,10 @@ class MainActivity : AppCompatActivity() {
 @Composable
 fun MyApp() {
     Surface(color = MaterialTheme.colors.background) {
+        val viewModel: CountdownViewModel = viewModel()
+
+        val counting by viewModel.counting.collectAsState()
+
         Scaffold(
             bottomBar = { BottomAppBar(cutoutShape = CircleShape) { } },
             floatingActionButtonPosition = FabPosition.Center,
@@ -48,14 +62,24 @@ fun MyApp() {
             floatingActionButton = {
                 FloatingActionButton(
                     shape = CircleShape,
-                    onClick = {}
+                    onClick = {
+                        if (counting) {
+                            viewModel.cancelTimer()
+                        } else {
+                            viewModel.startTimer()
+                        }
+                    }
                 ) {
-                    Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = "Play")
+                    if (counting) {
+                        Icon(imageVector = Icons.Filled.Stop, contentDescription = "Stop")
+                    } else {
+                        Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = "Play")
+                    }
                 }
-            }) {
-            CountdownPage()
+            }
+        ) {
+            CountdownPage(viewModel)
         }
-
     }
 }
 
