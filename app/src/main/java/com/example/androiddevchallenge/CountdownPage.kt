@@ -32,11 +32,11 @@ import androidx.compose.material.Card
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.key
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -50,8 +50,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.androiddevchallenge.ui.theme.blueGrey
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNot
+import kotlinx.coroutines.flow.onEach
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -67,8 +69,7 @@ fun CountdownPage(
     cellWidth: Dp = 84.dp,
     cellWidthPx: Float = LocalDensity.current.run { cellWidth.toPx() },
     padding: Dp = 16.dp,
-    labelStyle: TextStyle = MaterialTheme.typography.overline,
-    scope: CoroutineScope = rememberCoroutineScope()
+    labelStyle: TextStyle = MaterialTheme.typography.overline
 ) {
 
     val ticker by viewModel.ticker.collectAsState()
@@ -108,7 +109,6 @@ fun CountdownPage(
             index = hoursIndex,
             scroll = hoursScroll,
             counting = counting,
-            scope = scope,
             text = { "$it" },
             onScrolled = {
                 viewModel.hours = it
@@ -120,7 +120,6 @@ fun CountdownPage(
             index = minutesIndex,
             scroll = minutesScroll,
             counting = counting,
-            scope = scope,
             text = { "${it % 60}" },
             onScrolled = {
                 viewModel.minutes = it % 60
@@ -132,7 +131,6 @@ fun CountdownPage(
             index = secondsIndex,
             scroll = scroll,
             counting = counting,
-            scope = scope,
             text = { "${it % 60}" },
             onScrolled = {
                 viewModel.seconds = it % 60
@@ -151,13 +149,12 @@ fun ColumnScope.TimeView(
     cellWidth: Dp = 84.dp,
     cellWidthPx: Float = LocalDensity.current.run { cellWidth.toPx() },
     timeStyle: TextStyle = MaterialTheme.typography.h2,
-    scope: CoroutineScope = rememberCoroutineScope(),
     text: (Int) -> String,
     onScrolled: (Int) -> Unit
 ) {
 
     Box(contentAlignment = Alignment.TopCenter, modifier = Modifier.weight(2.0f, true)) {
-        val scrollState = rememberLazyListState()
+        val scrollState = key(index, scroll) { rememberLazyListState(index, scroll) }
         LazyRow(state = scrollState) {
             items(1000) {
 
@@ -171,20 +168,14 @@ fun ColumnScope.TimeView(
             }
         }
 
-        val userScroll by remember {
-            derivedStateOf { (scrollState.firstVisibleItemIndex + (scrollState.firstVisibleItemScrollOffset / cellWidthPx).roundToInt()) }
-        }
-
-        when {
-            counting -> scope.launch { scrollState.scrollToItem(index, scroll) }
-            index == 0 && scroll == 0 -> {
-                onScrolled(userScroll)
-
-                scope.launch {
-                    scrollState.runCatching { scrollToItem(index, scroll) }
+        LaunchedEffect(scrollState) {
+            snapshotFlow { scrollState.firstVisibleItemIndex + (scrollState.firstVisibleItemScrollOffset / cellWidthPx).roundToInt() }
+                .distinctUntilChanged()
+                .filterNot { counting }
+                .onEach {
+                    onScrolled(it)
                 }
-            }
-            else -> onScrolled(userScroll)
+                .collect()
         }
     }
 }
